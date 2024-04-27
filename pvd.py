@@ -11,7 +11,6 @@ def to_binary(s: str):
 
 def to_str(s_bin: str):
     return ''.join(chr(int(s_bin[i:i + 8], 2)) for i in range(0, len(s_bin), 8))
-    # return ''.join(int)  # ord!
 
 
 def get_d_l_u_n(v1: int, v2: int) -> tuple:
@@ -73,21 +72,21 @@ def embed_to_matrix(message, matrix):
             new_r1, new_r2, count_of_embedded_symbols = embed_to_values(r1, r2, msg_bin_part)
             matrix[line][row][0], matrix[line][row + 1][0] = new_r1, new_r2
             i += count_of_embedded_symbols
-            if i == len(msg_b):
+            if i >= len(msg_b):
                 return matrix
 
             msg_bin_part = ''.join(msg_b[j] for j in range(i, min(i + 6, len(msg_b))))
             new_g1, new_g2, count_of_embedded_symbols = embed_to_values(g1, g2, msg_bin_part)
             matrix[line][row][1], matrix[line][row + 1][1] = new_g1, new_g2
             i += count_of_embedded_symbols
-            if i == len(msg_b):
+            if i >= len(msg_b):
                 return matrix
 
             msg_bin_part = ''.join(msg_b[j] for j in range(i, min(i + 6, len(msg_b))))
             new_b1, new_b2, count_of_embedded_symbols = embed_to_values(b1, b2, msg_bin_part)
             matrix[line][row][2], matrix[line][row + 1][2] = new_b1, new_b2
             i += count_of_embedded_symbols
-            if i == len(msg_b):
+            if i >= len(msg_b):
                 return matrix
 
 
@@ -97,7 +96,7 @@ def extract_from_matrix(matrix):
         for row in range(0, len(matrix[line]), 2):
 
             msg_b += extract_from_values(matrix[line][row][0], matrix[line][row + 1][0])
-            if msg_b[-16:] == ('0' *16):
+            if msg_b[-16:] == ('0' * 16):
                 return to_str(msg_b[:-16])
 
             msg_b += extract_from_values(matrix[line][row][1], matrix[line][row + 1][1])
@@ -107,39 +106,50 @@ def extract_from_matrix(matrix):
             msg_b += extract_from_values(matrix[line][row][2], matrix[line][row + 1][2])
             if msg_b[-16:] == ('0' * 16):
                 return to_str(msg_b[:-16])
+    return to_str(msg_b)
+
+
+def get_all_possible_bytes(matrix):
+    count = 0
+    i = 0
+    for line in range(len(matrix)):
+        for row in range(0, len(matrix[line]), 2):
+            r1, g1, b1, a1 = matrix[line][row]
+            r2, g2, b2, a2 = matrix[line][row + 1]
+            # 6 - max
+
+            new_r1, new_r2, count_of_embedded_symbols = embed_to_values(r1, r2, '000000')
+
+            _, _, _, n_k1 = get_d_l_u_n(r1, r2)
+            _, _, _, n_k2 = get_d_l_u_n(g1, g2)
+            _, _, _, n_k3 = get_d_l_u_n(b1, b2)
+            count += n_k1 + n_k2 + n_k3
+    return count
 
 
 if __name__ == '__main__':
-    mode = input("Embed/Extract? [Em/Ex]\n")
+    mode = input("Embed/Extract/getMaxBits? [Em/Ex/Max]\n")
     if mode == "Em":
         path = input(f'Введите путь к файлу:\n')
         path = "source_copy.png" if not path else path
         im = Image.open(path)
         matrix = numpy.array(im)
 
-        # message = ("The sun was setting behind the mountains, casting a warm glow over the meadow below. "
-        #            "The sound of crickets filled the air, a peaceful symphony of nature. As the day came to an end, "
-        #            "I couldn't help but feel grateful for the simple beauty of the world around me.")
-        with open("the_princess_and_the_pea", "r") as f:
+        with open("the_princess_and_the_pea_1", "r") as f:
             message = ''.join(i for i in f.readlines())
         embed_to_matrix(message, matrix)
-        out = extract_from_matrix(matrix)
-        print(out)
-        # matrix[0][0][0] += 255
-        # print(matrix)
-        # print(matrix.shape)
-        # for line in range(512):
-        #     for row in range(512):
-        #         matrix[line][row] = matrix[line][row][:3]
-        print(matrix.shape)
-        # # new_img = Image.fromarray(matrix)
-        # # new_img.save("output.png")
-        # scipy.misc.imsave('output.png', matrix)
         Image.fromarray(matrix).save("stego-image.png")
-    else:
+    elif mode == "Ex":
         path = input(f'Введите путь к файлу:\n')
         path = "stego-image.png" if not path else path
         im = Image.open(path)
         matrix = numpy.array(im)
         out = extract_from_matrix(matrix)
         print(out)
+    else:
+        path = input(f'Введите путь к файлу:\n')
+        path = "source_copy.png" if not path else path
+        im = Image.open(path)
+        matrix = numpy.array(im)
+        count = get_all_possible_bytes(matrix)
+        print(count, count // 8)
