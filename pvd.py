@@ -1,8 +1,16 @@
 import numpy
 from PIL import Image
-import scipy.misc
+import sys
+from pvd_analysis import *
 
 list_of_intervals = ((0, 7), (8, 15), (16, 31), (32, 63), (64, 127), (128, 255))
+
+
+def calibration_of_matrix(matrix: numpy.array):
+    for line in range(len(matrix)):
+        for row in range(len(matrix[line])):
+            for channel in range(3):
+                matrix[line][row][channel] = max(8, min(255 - 8, matrix[line][row][channel]))
 
 
 def to_binary(s: str):
@@ -64,8 +72,8 @@ def embed_to_matrix(message, matrix):
     i = 0
     for line in range(len(matrix)):
         for row in range(0, len(matrix[line]), 2):
-            r1, g1, b1, a1 = matrix[line][row]
-            r2, g2, b2, a2 = matrix[line][row + 1]
+            r1, g1, b1, _ = matrix[line][row]
+            r2, g2, b2, _ = matrix[line][row + 1]
             # 6 - max
 
             msg_bin_part = ''.join(msg_b[j] for j in range(i, min(i + 6, len(msg_b))))
@@ -73,21 +81,22 @@ def embed_to_matrix(message, matrix):
             matrix[line][row][0], matrix[line][row + 1][0] = new_r1, new_r2
             i += count_of_embedded_symbols
             if i >= len(msg_b):
-                return matrix
+                return len(msg_b)
 
             msg_bin_part = ''.join(msg_b[j] for j in range(i, min(i + 6, len(msg_b))))
             new_g1, new_g2, count_of_embedded_symbols = embed_to_values(g1, g2, msg_bin_part)
             matrix[line][row][1], matrix[line][row + 1][1] = new_g1, new_g2
             i += count_of_embedded_symbols
             if i >= len(msg_b):
-                return matrix
+                return len(msg_b)
 
             msg_bin_part = ''.join(msg_b[j] for j in range(i, min(i + 6, len(msg_b))))
             new_b1, new_b2, count_of_embedded_symbols = embed_to_values(b1, b2, msg_bin_part)
             matrix[line][row][2], matrix[line][row + 1][2] = new_b1, new_b2
             i += count_of_embedded_symbols
             if i >= len(msg_b):
-                return matrix
+                return len(msg_b)
+    return i
 
 
 def extract_from_matrix(matrix):
@@ -114,11 +123,8 @@ def get_all_possible_bytes(matrix):
     i = 0
     for line in range(len(matrix)):
         for row in range(0, len(matrix[line]), 2):
-            r1, g1, b1, a1 = matrix[line][row]
-            r2, g2, b2, a2 = matrix[line][row + 1]
-            # 6 - max
-
-            new_r1, new_r2, count_of_embedded_symbols = embed_to_values(r1, r2, '000000')
+            r1, g1, b1, _ = matrix[line][row]
+            r2, g2, b2, _ = matrix[line][row + 1]
 
             _, _, _, n_k1 = get_d_l_u_n(r1, r2)
             _, _, _, n_k2 = get_d_l_u_n(g1, g2)
@@ -129,26 +135,45 @@ def get_all_possible_bytes(matrix):
 
 if __name__ == '__main__':
     mode = input("Embed/Extract/getMaxBits? [Em/Ex/Max]\n")
+    path = input(f'Введите путь к файлу:\n')
     if mode == "Em":
-        path = input(f'Введите путь к файлу:\n')
-        path = "source_copy.png" if not path else path
+        path = "Images\\source.png" if not path else path
         im = Image.open(path)
         matrix = numpy.array(im)
+        old_matrix = matrix.copy()
+        calibration_of_matrix(matrix)
+        print('Введите сообщение (должны использоваться только символы из ASCII):')
+        message = ''
+        new_line = input()
+        while len(new_line):
+            message += new_line + '\n'
+            new_line = input()
+        # with open("Texts/the_princess_and_the_pea_long", "r") as f:
+        #     message = ''.join(i for i in f.readlines())
+        embedded_bits = embed_to_matrix(message, matrix)
+        Image.fromarray(matrix).save("Images\\stego-image.png")
+        print("Информация встроена")
 
-        with open("the_princess_and_the_pea_1", "r") as f:
-            message = ''.join(i for i in f.readlines())
-        embed_to_matrix(message, matrix)
-        Image.fromarray(matrix).save("stego-image.png")
+        mse = MSE(old_matrix, matrix)
+        specifications = {
+            "MSE": sum(mse) / 3,
+            "PSNR": sum(PSNR(mse)) / 3,
+            "RMSE": sum(RMSE(mse)) / 3,
+            "SSIM": sum(SSIM(old_matrix, matrix)) / 3,
+            "EC": [embedded_bits / (matrix.shape[0] * matrix.shape[1]), embedded_bits / 8],
+        }
+        print("Характеристики незаметности встраивания:")
+        for s in specifications.keys():
+            print(f'{s}: {specifications[s]}')
+
     elif mode == "Ex":
-        path = input(f'Введите путь к файлу:\n')
-        path = "stego-image.png" if not path else path
+        path = "Images\\stego-image.png" if not path else path
         im = Image.open(path)
         matrix = numpy.array(im)
         out = extract_from_matrix(matrix)
         print(out)
     else:
-        path = input(f'Введите путь к файлу:\n')
-        path = "source_copy.png" if not path else path
+        path = "Images\\source.png" if not path else path
         im = Image.open(path)
         matrix = numpy.array(im)
         count = get_all_possible_bytes(matrix)
