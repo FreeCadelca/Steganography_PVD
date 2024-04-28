@@ -132,7 +132,6 @@ def get_all_possible_bytes(matrix):
             count += n_k1 + n_k2 + n_k3
     return count
 
-
 if __name__ == '__main__':
     mode = input("Embed/Extract/getMaxBits? [Em/Ex/Max]\n")
     path = input(f'Введите путь к файлу:\n')
